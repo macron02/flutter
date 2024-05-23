@@ -2,23 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
-import 'utils/leaking_classes.dart';
+import 'utils/memory_leak_tests.dart';
 
-late final String _test1TrackingOnNoLeaks;
-late final String _test2TrackingOffLeaks;
-late final String _test3TrackingOnLeaks;
-late final String _test4TrackingOnWithCreationStackTrace;
-late final String _test5TrackingOnWithDisposalStackTrace;
-late final String _test6TrackingOnNoLeaks;
-late final String _test7TrackingOnNoLeaks;
-late final String _test8TrackingOnNotDisposed;
+class _TestExecution {
+  _TestExecution(
+      {required this.settings, required this.settingName, required this.test});
+
+  final String settingName;
+  final LeakTesting settings;
+  final LeakTestCase test;
+
+  String get name => '${test.name}, $settingName';
+}
+
+final List<_TestExecution> _testExecutions = <_TestExecution>[];
 
 void main() {
+  LeakTesting.collectedLeaksReporter = _verifyLeaks;
   LeakTesting.enable();
   LeakTesting.collectedLeaksReporter = (Leaks leaks) => verifyLeaks(leaks);
   LeakTesting.settings = LeakTesting.settings.copyWith(ignore: false);
@@ -30,21 +34,22 @@ void main() {
     });
   });
 
-  testWidgets(_test1TrackingOnNoLeaks = 'test1, tracking-on, no leaks', (WidgetTester widgetTester) async {
+  testWidgets(_test1TrackingOnNoLeaks = 'test1, tracking-on, no leaks',
+      (WidgetTester widgetTester) async {
     expect(LeakTracking.isStarted, true);
     expect(LeakTracking.phase.name, _test1TrackingOnNoLeaks);
     expect(LeakTracking.phase.ignoreLeaks, false);
     await widgetTester.pumpWidget(Container());
   });
 
-  testWidgets(
-    _test2TrackingOffLeaks = 'test2, tracking-off, leaks',
-    experimentalLeakTesting: LeakTesting.settings.withIgnoredAll(),
-  (WidgetTester widgetTester) async {
+  testWidgets(_test2TrackingOffLeaks = 'test2, tracking-off, leaks',
+      experimentalLeakTesting: LeakTesting.settings.withIgnoredAll(),
+      (WidgetTester widgetTester) async {
     await widgetTester.pumpWidget(StatelessLeakingWidget());
   });
 
-  testWidgets(_test3TrackingOnLeaks = 'test3, tracking-on, leaks', (WidgetTester widgetTester) async {
+  testWidgets(_test3TrackingOnLeaks = 'test3, tracking-on, leaks',
+      (WidgetTester widgetTester) async {
     expect(LeakTracking.isStarted, true);
     expect(LeakTracking.phase.name, _test3TrackingOnLeaks);
     expect(LeakTracking.phase.ignoreLeaks, false);
@@ -52,9 +57,10 @@ void main() {
   });
 
   testWidgets(
-    _test4TrackingOnWithCreationStackTrace = 'test4, tracking-on, with creation stack trace',
+    _test4TrackingOnWithCreationStackTrace =
+        'test4, tracking-on, with creation stack trace',
     experimentalLeakTesting: LeakTesting.settings.withCreationStackTrace(),
-  (WidgetTester widgetTester) async {
+    (WidgetTester widgetTester) async {
       expect(LeakTracking.isStarted, true);
       expect(LeakTracking.phase.name, _test4TrackingOnWithCreationStackTrace);
       expect(LeakTracking.phase.ignoreLeaks, false);
@@ -63,8 +69,9 @@ void main() {
   );
 
   testWidgets(
-    _test5TrackingOnWithDisposalStackTrace = 'test5, tracking-on, with disposal stack trace',
-  experimentalLeakTesting: LeakTesting.settings.withDisposalStackTrace(),
+    _test5TrackingOnWithDisposalStackTrace =
+        'test5, tracking-on, with disposal stack trace',
+    experimentalLeakTesting: LeakTesting.settings.withDisposalStackTrace(),
     (WidgetTester widgetTester) async {
       expect(LeakTracking.isStarted, true);
       expect(LeakTracking.phase.name, _test5TrackingOnWithDisposalStackTrace);
@@ -73,16 +80,21 @@ void main() {
     },
   );
 
-  testWidgets(_test6TrackingOnNoLeaks = 'test6, tracking-on, no leaks', (_) async {
+  testWidgets(_test6TrackingOnNoLeaks = 'test6, tracking-on, no leaks',
+      (_) async {
     LeakTrackedClass().dispose();
   });
 
-  testWidgets(_test7TrackingOnNoLeaks = 'test7, tracking-on, tear down, no leaks', (_) async {
+  testWidgets(
+      _test7TrackingOnNoLeaks = 'test7, tracking-on, tear down, no leaks',
+      (_) async {
     final LeakTrackedClass myClass = LeakTrackedClass();
     addTearDown(myClass.dispose);
   });
 
-  testWidgets(_test8TrackingOnNotDisposed = 'test8, tracking-on, not disposed leak', (_) async {
+  testWidgets(
+      _test8TrackingOnNotDisposed = 'test8, tracking-on, not disposed leak',
+      (_) async {
     expect(LeakTracking.isStarted, true);
     expect(LeakTracking.phase.name, _test8TrackingOnNotDisposed);
     expect(LeakTracking.phase.ignoreLeaks, false);
@@ -104,8 +116,10 @@ void verifyLeaks(Leaks leaks) {
     expect(e.message, isNot(contains(_test1TrackingOnNoLeaks)));
     expect(e.message, isNot(contains(_test2TrackingOffLeaks)));
     expect(e.message, contains('test: $_test3TrackingOnLeaks'));
-    expect(e.message, contains('test: $_test4TrackingOnWithCreationStackTrace'));
-    expect(e.message, contains('test: $_test5TrackingOnWithDisposalStackTrace'));
+    expect(
+        e.message, contains('test: $_test4TrackingOnWithCreationStackTrace'));
+    expect(
+        e.message, contains('test: $_test5TrackingOnWithDisposalStackTrace'));
     expect(e.message, isNot(contains(_test6TrackingOnNoLeaks)));
     expect(e.message, isNot(contains(_test7TrackingOnNoLeaks)));
     expect(e.message, contains('test: $_test8TrackingOnNotDisposed'));
@@ -158,12 +172,17 @@ void _verifyLeaks(
   String testDescription, {
   int notDisposed = 0,
   int notGCed = 0,
-  Map<LeakType, List<String>> expectedContextKeys = const <LeakType, List<String>>{},
+  Map<LeakType, List<String>> expectedContextKeys =
+      const <LeakType, List<String>>{},
 }) {
   final Leaks testLeaks = Leaks(
     allLeaks.byType.map(
       (LeakType key, List<LeakReport> value) =>
-          MapEntry<LeakType, List<LeakReport>>(key, value.where((LeakReport leak) => leak.phase == testDescription).toList()),
+          MapEntry<LeakType, List<LeakReport>>(
+              key,
+              value
+                  .where((LeakReport leak) => leak.phase == testDescription)
+                  .toList()),
     ),
   );
 
@@ -172,7 +191,8 @@ void _verifyLeaks(
     final List<String> expectedKeys = expectedContextKeys[type]!..sort();
     for (final LeakReport leak in leaks) {
       final List<String> actualKeys = leak.context?.keys.toList() ?? <String>[];
-      expect(actualKeys..sort(), equals(expectedKeys), reason: '$testDescription, $type');
+      expect(actualKeys..sort(), equals(expectedKeys),
+          reason: '$testDescription, $type');
     }
   }
 
